@@ -21,6 +21,9 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <time.h>
+#include <dirent.h>
+#include <signal.h>
+
 
 #define MAX_INPUT_SIZE 1024
 #define MAX_TOKENS 100
@@ -32,12 +35,22 @@ void make_directory(char *pathname);
 void remove_directory(char *pathname);
 void link_file(char *tokens[]);
 void bg_run(char *tokens[], bool background);
+void list_directory(char *pathname);
+void print_current_directory(void);
+void change_directory(const char *path);
+void handle_interrupt(int signo);
 
 int main(int argc, char *argv[]) {
     char input[MAX_INPUT_SIZE];
     char *tokens[MAX_TOKENS];
     bool pipe = false;
     bool background = false;
+ 
+    // 인터럽트 처리, 시그널 핸들러 설정
+    if (signal(SIGINT, handle_interrupt) == SIG_ERR || signal(SIGTSTP, handle_interrupt) == SIG_ERR) {
+        perror("signal");
+        exit(EXIT_FAILURE);
+    }
 
     while (1) {
         // 프롬프트 표시
@@ -114,7 +127,26 @@ int main(int argc, char *argv[]) {
         else if(background) {
             bg_run(tokens, background);
         }
-
+        // ls 명령어 처리
+        else if (strcmp(tokens[0], "ls") == 0) {
+            if (tokens[1] == NULL) {
+                list_directory(".");
+            } else {
+                list_directory(tokens[1]);
+            }
+        }
+        // pwd 명령어 처리
+        else if (strcmp(tokens[0], "pwd") == 0) {
+            print_current_directory();
+        }
+        // cd 명령어 처리
+        else if (strcmp(tokens[0], "cd") == 0) {
+            if (tokens[1] == NULL) {
+                fprintf(stderr, "사용법: cd <디렉터리>\n");
+            } else {
+                change_directory(tokens[1]);
+            }
+        }
         else {
             printf("command not found...\n");
         }
@@ -577,4 +609,44 @@ void handle_redirection(char *tokens[]) {
     dup2(saved_stdin, 0);
     close(saved_stdout);
     close(saved_stdin);
+}
+
+void list_directory(char *pathname) {
+    DIR *dir;
+    struct dirent *entry;
+
+    if ((dir = opendir(pathname)) == NULL) {
+        perror("opendir");
+        exit(EXIT_FAILURE);
+    }
+
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+            continue;
+        }
+        printf("%s\n", entry->d_name);
+    }
+
+    closedir(dir);
+}
+
+void print_current_directory() {
+    char buffer[1024];
+    if (getcwd(buffer, sizeof(buffer)) != NULL) {
+        printf("%s\n", buffer);
+    } else {
+        perror("getcwd");
+        exit(EXIT_FAILURE);
+    }
+}
+
+void change_directory(const char *path) {
+    if (chdir(path) != 0) {
+        perror("chdir");
+    }
+}
+
+void handle_interrupt(int signo) {
+    printf("\n인터럽트 발생, 프로그램을 종료합니다...\n");
+    exit(EXIT_SUCCESS);
 }
