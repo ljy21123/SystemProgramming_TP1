@@ -4,8 +4,10 @@
     예) mv -v a.txt test_dir/ => ["mv", "-v", "a.txt", "test_dir/"] 형식으로 변환
     tokens[0] => mv 출력됨.
 
+    2023-11-09: mkdir 기능 생성
     2023-11-11: exit, 파일재지향, 파이프, rm, mv 기능 생성,
-                다른 코드에 정의된 mkdir과 통합
+                다른 코드에 정의된 mkdir과 통합,
+                rmdir, ln 기능 생성
 
 */
 
@@ -85,22 +87,98 @@ int main(int argc, char *argv[]) {
         }
         // mkdir 명령어 처리
         else if(strcmp(tokens[0], "mkdir") == 0) {
-            mkdir_method(tokens[1]);
+            make_directory(tokens[1]);
         }
-        else{
+        // rmdir 명령어 처리
+        else if(strcmp(tokens[0], "rmdir") == 0) {
+            remove_directory(tokens[1]);
+        }
+        // ln 명령어 처리
+        else if(strcmp(tokens[0], "ln") == 0) {
+
+            bool s = false, f = false;  // 옵션 플래그
+            char *source, *target;  // 소스 및 대상 파일 경로
+
+            for (int i = 1; tokens[i] != NULL; i++) {
+                if (strcmp(tokens[i], "-s") == 0) {
+                    s = true;   // 심볼릭 링크 옵션 활성화
+                } else if (strcmp(tokens[i], "-f") == 0) {
+                    f = true;   // 강제 링크 옵션 활성화
+                } else if (!source) {
+                    source = tokens[i]; // 첫번째 파일 경로
+                } else {
+                    target = tokens[i]; // 두번째 파일 경로
+                }
+            }
+
+            // 소스 또는 대상이 지정되지 않은 경우
+            if (!source || !target) {
+                fprintf(stderr, "Usage: ln [-s] [-f] source target\n");
+            } else {
+                ln_method(source, target, s, f);
+            }
+        }
+
+        else {
             printf("command not found...\n");
         }
     }
     return 0;
 }
 
-void mkdir_method(/*char *tokens[]*/char *pathname) {
+void make_directory(/*char *tokens[]*/char *pathname) {
     // char *pathname = tokens[1];
     // 디렉토리 생성
     if (mkdir(pathname, S_IRWXU) == 0) {
         printf("directory create success!!: %s\n", pathname);
     } else {
         perror("directory create fail..");
+    }
+}
+
+void remove_directory(/*char *tokens[]*/char *pathname) {
+    // char *pathname = tokens[1];
+    // 디렉토리 삭제
+    if (rmdir(pathname) == 0) {
+        printf("directory delete success!!: %s\n", pathname);
+    } else {
+        perror("directory delete fail..");
+    }
+}
+
+void ln_method(char *source, char *target, bool s, bool f) {
+    /*
+    -f : 접근할 수 없는 사용권한을 가졌을 때도 링크가 가능
+    -s : 심볼릭 링크 생성
+    */
+    if (s) {
+        // 심볼릭 링크 생성
+        if (f && access(target, F_OK) == 0) {
+            // -f 옵션이 있고 대상 파일이 존재하는 경우, 기존 링크를 삭제
+            if (unlink(target) < 0) {
+                perror("Failed to remove existing file");
+                return;
+            }
+        }
+        if (symlink(source, target) < 0) {
+            perror("Failed to create symbolic link");
+        } else {
+            printf("Symbolic link created: %s -> %s\n", target, source);
+        }
+    } else {
+        // 하드 링크 생성
+        if (f && access(target, F_OK) == 0) {
+            // -f 옵션이 있고 대상 파일이 존재하는 경우, 기존 파일을 삭제
+            if (unlink(target) < 0) {
+                perror("Failed to remove existing file");
+                return;
+            }
+        }
+        if (link(source, target) < 0) {
+            perror("Failed to create hard link");
+        } else {
+            printf("Hard link created: %s -> %s\n", target, source);
+        }
     }
 }
 
