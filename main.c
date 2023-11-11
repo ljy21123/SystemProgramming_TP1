@@ -28,7 +28,9 @@
 void remove_file(char *tokens[]);
 void move_file(char *tokens[]);
 void handle_redirection(char *tokens[]);
-void mkdir_method(/*char *tokens[]*/char *pathname);
+void make_directory(/*char *tokens[]*/char *pathname);
+void remove_directory(/*char *tokens[]*/char *pathname);
+void link_file(char *source, char *target, bool s, bool f);
 
 int main(int argc, char *argv[]) {
     char input[MAX_INPUT_SIZE];
@@ -115,7 +117,7 @@ int main(int argc, char *argv[]) {
             if (!source || !target) {
                 fprintf(stderr, "Usage: ln [-s] [-f] source target\n");
             } else {
-                ln_method(source, target, s, f);
+                link_file(source, target, s, f);
             }
         }
 
@@ -146,7 +148,7 @@ void remove_directory(/*char *tokens[]*/char *pathname) {
     }
 }
 
-void ln_method(char *source, char *target, bool s, bool f) {
+void link_file(char *source, char *target, bool s, bool f) {
     /*
     -f : 접근할 수 없는 사용권한을 가졌을 때도 링크가 가능
     -s : 심볼릭 링크 생성
