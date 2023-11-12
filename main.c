@@ -26,7 +26,9 @@
 #include <signal.h>
 #include <errno.h>
 #include <ctype.h>
-
+#include <limits.h> 
+#include <pwd.h>   
+#include <grp.h>  
 
 #define MAX_INPUT_SIZE 1024
 #define MAX_TOKENS 100
@@ -39,7 +41,7 @@ void remove_directory(char *pathname);
 void removeDirectory(const char *path, bool i, bool v);
 void link_file(char *tokens[]);
 void bg_run(char *tokens[], bool background);
-void list_directory(char *pathname);
+void list_directory(char *tokens[]);
 void print_current_directory(void);
 void change_directory(const char *path);
 void handle_interrupt(int signo);
@@ -145,11 +147,7 @@ int main(int argc, char *argv[]) {
         }
         // ls 명령어 처리
         else if (strcmp(tokens[0], "ls") == 0) {
-            if (tokens[1] == NULL) {
-                list_directory(".");
-            } else {
-                list_directory(tokens[1]);
-            }
+            list_directory(tokens);
         }
         // pwd 명령어 처리
         else if (strcmp(tokens[0], "pwd") == 0) {
@@ -731,23 +729,266 @@ void handle_redirection(char *tokens[]) {
     close(saved_stdin);
 }
 
-void list_directory(char *pathname) {
-    DIR *dir;
-    struct dirent *entry;
+struct FileInfoByMTime {
+    char name[256];
+    time_t mtime;  
+};
+struct FileInfoBySize {
+    char name[256];
+    off_t size;  
+};
+struct FileInfo {
+    char name[256];
+};
+int compareFileInfoByMTime(const void *a, const void *b) {
+    return ((struct FileInfoByMTime *)b)->mtime - ((struct FileInfoByMTime *)a)->mtime;
+}
+int compareFileInfoBySize(const void *a, const void *b) {
+    return ((struct FileInfoBySize *)b)->size - ((struct FileInfoBySize *)a)->size;
+}
+int compareFileInfoByNameReverse(const void *a, const void *b) {
+    return strcmp(((struct FileInfo *)b)->name, ((struct FileInfo *)a)->name);
+}
 
-    if ((dir = opendir(pathname)) == NULL) {
-        perror("opendir");
-        exit(EXIT_FAILURE);
-    }
+void list_directory(char *tokens[]) {
 
-    while ((entry = readdir(dir)) != NULL) {
-        if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
-            continue;
+    // 기본 ls 실행
+    if (tokens[1] == NULL) {
+        DIR *dir;
+        struct dirent *entry;
+
+        if ((dir = opendir(".")) != NULL) {
+            while ((entry = readdir(dir)) != NULL) {
+                if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0) {
+                    continue;
+                }
+                printf("%s\n", entry->d_name);
+            }
+            closedir(dir);
+        } else {
+            perror("디렉터리 열기 오류");
         }
-        printf("%s\n", entry->d_name);
     }
+    // ls 뒤에 옵션이 있는 경우 처리
+    else {
+        for (int i = 1; tokens[i] != NULL; i++) {
+            if (strcmp(tokens[i], "-a") == 0) {
+                DIR *dir;
+                struct dirent *entry;
 
-    closedir(dir);
+                if ((dir = opendir(".")) != NULL) {
+                    // 디렉토리 내의 모든 파일과 디렉토리 출력
+                    while ((entry = readdir(dir)) != NULL) {
+                        printf("%s\n", entry->d_name);
+                    }
+                    closedir(dir);
+                } else {
+                    perror("디렉터리 열기 오류");
+                }
+            } else if (strcmp(tokens[i], "-l") == 0) {
+                DIR *dir;
+                struct dirent *ent;
+
+                if ((dir = opendir(".")) != NULL) {
+                    // 파일 및 디렉토리에 대한 상세 정보 출력
+                    while ((ent = readdir(dir)) != NULL) {
+                        if (ent->d_name[0] != '.') { // 숨김 파일 제외
+                            struct stat file_stat;
+                            char full_path[1024];
+                            snprintf(full_path, sizeof(full_path), "%s/%s", ".", ent->d_name);
+
+                            if (stat(full_path, &file_stat) == 0) {
+                                // 파일 유형과 권한 출력
+                                printf((S_ISDIR(file_stat.st_mode)) ? "d" : "-");
+                                printf((file_stat.st_mode & S_IRUSR) ? "r" : "-");
+                                printf((file_stat.st_mode & S_IWUSR) ? "w" : "-");
+                                printf((file_stat.st_mode & S_IXUSR) ? "x" : "-");
+                                printf((file_stat.st_mode & S_IRGRP) ? "r" : "-");
+                                printf((file_stat.st_mode & S_IWGRP) ? "w" : "-");
+                                printf((file_stat.st_mode & S_IXGRP) ? "x" : "-");
+                                printf((file_stat.st_mode & S_IROTH) ? "r" : "-");
+                                printf((file_stat.st_mode & S_IWOTH) ? "w" : "-");
+                                printf((file_stat.st_mode & S_IXOTH) ? "x" : " ");
+
+                                // 하드 링크의 개수 출력
+                                printf("%d ", (int)file_stat.st_nlink);
+
+                                // 소유자와 그룹 출력
+                                struct passwd *owner_info = getpwuid(file_stat.st_uid);
+                                struct group *group_info = getgrgid(file_stat.st_gid);
+                                printf("%s %s ", owner_info->pw_name, group_info->gr_name);
+
+                                printf("%d ", (int)file_stat.st_size);
+
+                                // 수정 시간
+                                char time_str[20];
+                                strftime(time_str, sizeof(time_str), "%b %d %H:%M", localtime(&file_stat.st_mtime));
+                                printf("%s ", time_str);
+
+                                // 파일 이름
+                                printf("%s\n", ent->d_name);
+                            } else {
+                                perror("파일 상태 가져오기 오류");
+                            }
+                        }
+                    }
+                    closedir(dir);
+                } else {
+                    perror("디렉터리 열기 오류");
+                }
+            } else if (strcmp(tokens[i], "-s") == 0) {
+
+                DIR *dir;
+                struct dirent *ent;
+
+                if ((dir = opendir(".")) != NULL) {
+                    // 파일 정보를 배열에 저장
+                    struct FileInfoBySize files[1000];
+                    int file_count = 0;
+
+                    while ((ent = readdir(dir)) != NULL) {
+                        if (ent->d_name[0] != '.') { // 숨김 파일 제외
+                            struct stat file_stat;
+                            char full_path[1024];
+                            snprintf(full_path, sizeof(full_path), "%s/%s", ".", ent->d_name);
+
+                            if (stat(full_path, &file_stat) == 0) {
+                                strncpy(files[file_count].name, ent->d_name, sizeof(files[file_count].name) - 1);
+                                files[file_count].name[sizeof(files[file_count].name) - 1] = '\0';
+                                files[file_count].size = file_stat.st_blocks;
+                                file_count++;
+                            } else {
+                                perror("디렉터리 열기 오류");
+                            }
+                        }
+                    }
+                    closedir(dir);
+
+                    // 파일 크기를 기준으로 파일 정렬
+                    qsort(files, file_count, sizeof(struct FileInfoBySize), compareFileInfoBySize);
+
+                    // 정렬된 파일 출력
+                    for (int j = 0; j < file_count; j++) {
+                        printf("%s\t%d\n", files[j].name, (int)files[j].size);
+                    }
+                } else {
+                    // could not open directory
+                    perror("디렉터리 열기 오류");
+                }
+            } else if (strcmp(tokens[i], "-t") == 0) {
+
+                DIR *dir;
+                struct dirent *ent;
+
+                if ((dir = opendir(".")) != NULL) {
+                    // 파일 정보를 배열에 저장
+                    struct FileInfoByMTime files[1000]; 
+                    int file_count = 0;
+
+                    while ((ent = readdir(dir)) != NULL) {
+                        if (ent->d_name[0] != '.') { // 숨김 파일 제외
+                            struct stat file_stat;
+                            char full_path[1024];
+                            snprintf(full_path, sizeof(full_path), "%s/%s", ".", ent->d_name);
+
+                            if (stat(full_path, &file_stat) == 0) {
+                                strncpy(files[file_count].name, ent->d_name, sizeof(files[file_count].name) - 1);
+                                files[file_count].name[sizeof(files[file_count].name) - 1] = '\0';
+                                files[file_count].mtime = file_stat.st_mtime;
+                                file_count++;
+                            } else {
+                                perror("파일 상태 가져오기 오류");
+                            }
+                        }
+                    }
+                    closedir(dir);
+
+                    // 수정 시간을 기준으로 파일 정렬
+                    qsort(files, file_count, sizeof(struct FileInfoByMTime), compareFileInfoByMTime);
+
+                    // 정렬된 파일 출력
+                    for (int j = 0; j < file_count; j++) {
+                        printf("%s\t%s", files[j].name, ctime(&files[j].mtime));  // ctime converts time to a string
+                    }
+                } else {
+                    perror("디렉터리 열기 오류");
+                }
+            } else if (strcmp(tokens[i], "-i") == 0) {
+
+                DIR *dir;
+                struct dirent *ent;
+
+                if ((dir = opendir(".")) != NULL) {
+                    while ((ent = readdir(dir)) != NULL) {
+                        if (ent->d_name[0] != '.') { // 숨김 파일 제외
+                            struct stat file_stat;
+                            char full_path[1024];
+                            snprintf(full_path, sizeof(full_path), "%s/%s", ".", ent->d_name);
+
+                            if (stat(full_path, &file_stat) == 0) {
+                                printf("%ld %s\n", (long)file_stat.st_ino, ent->d_name);
+                            } else {
+                                perror("파일 상태 가져오기 오류");
+                            }
+                        }
+                    }
+                    closedir(dir);
+                } else {
+                    perror("디렉터리 열기 오류");
+                }
+            } else if (strcmp(tokens[i], "-r") == 0) {
+
+                DIR *dir;
+                struct dirent *ent;
+
+                if ((dir = opendir(".")) != NULL) {
+                    // 파일 정보를 배열에 저장
+                    struct FileInfo files[1000]; 
+                    int file_count = 0;
+
+                    while ((ent = readdir(dir)) != NULL) {
+                        if (ent->d_name[0] != '.') { // 숨김 파일 제외
+                            strncpy(files[file_count].name, ent->d_name, sizeof(files[file_count].name) - 1);
+                            files[file_count].name[sizeof(files[file_count].name) - 1] = '\0';
+                            file_count++;
+                        }
+                    }
+                    closedir(dir);
+
+                    // 파일 이름을 기준으로 역순으로 파일 정렬
+                    qsort(files, file_count, sizeof(struct FileInfo), compareFileInfoByNameReverse);
+
+                    // 정렬된 파일 출력
+                    for (int j = 0; j < file_count; j++) {
+                        printf("%s\n", files[j].name);
+                    }
+                } else {
+                    perror("디렉터리 열기 오류");
+                }
+            } else if (strcmp(tokens[i], "-m") == 0) {
+
+                DIR *dir;
+                struct dirent *ent;
+
+                if ((dir = opendir(".")) != NULL) {
+                    // 쉼표로 구분된 파일 출력
+                    while ((ent = readdir(dir)) != NULL) {
+                        if (ent->d_name[0] != '.') { // 숨김 파일 제외
+                            printf("%s, ", ent->d_name);
+                        }
+                    }
+                    closedir(dir);
+
+                    printf("\n");
+                } else {
+                    perror("디렉터리 열기 오류");
+                }
+            } else {
+                printf("올바르지 않은 옵션: %s\n", tokens[i]);
+                return;
+            }
+        }
+    }
 }
 
 void print_current_directory() {
