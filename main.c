@@ -61,10 +61,13 @@ int main(int argc, char *argv[]) {
     }
 
     while (1) {
+
         // 프롬프트 표시
         printf("MyShell> ");
         // 출력이 즉시 화면에 나타나도록 함
         fflush(stdout);
+
+        background = false;
 
         // 사용자 입력 받기
         fgets(input, MAX_INPUT_SIZE, stdin);
@@ -80,32 +83,41 @@ int main(int argc, char *argv[]) {
         // 토큰화
         char *token = strtok(input, " ");
         int i = 0;
+        // while (token != NULL) {
+        //     tokens[i++] = token;
+        //     token = strtok(NULL, " ");
+        // }
         while (token != NULL) {
+            // '&' 문자가 토큰의 끝에 있는지 확인
+            if (token[strlen(token) - 1] == '&') {
+                background = true;
+                // '&' 문자 제거
+                token[strlen(token) - 1] = '\0';
+                // 빈 토큰인 경우 넘어감
+                if (strlen(token) == 0) {
+                    break;
+                }
+            }
             tokens[i++] = token;
             token = strtok(NULL, " ");
         }
         tokens[i] = NULL;
 
         pipe = false;
-        background = false;
         for (i = 0; tokens[i] != NULL; i++) {
             if (strcmp(tokens[i], "<") == 0 || strcmp(tokens[i], ">") == 0 || strcmp(tokens[i], "|") == 0) {
                 pipe = true;
             }
-            // '&' 문자가 있으면 백그라운드 실행으로 설정
-            if (strcmp(tokens[i], "&") == 0) {
-                background = true;
-                tokens[i] = NULL;  // '&' 문자를 명령어 배열에서 제거
-                printf("run background ...\n");
-                break;
-            }
         }
-
 
 
         // exit 명령어 처리
         if (strcmp(tokens[0], "exit") == 0) {
             break;
+        }
+        // 백그라운드 실행 명령어 처리
+        else if (background) {
+            bg_run(tokens, background);
         }
         // 파이프 처리
         else if (pipe){
@@ -130,10 +142,6 @@ int main(int argc, char *argv[]) {
         // ln 명령어 처리
         else if(strcmp(tokens[0], "ln") == 0) {
             link_file(tokens);
-        }
-        // 백그라운드 실행 명령어 처리
-        else if(background) {
-            bg_run(tokens, background);
         }
         // ls 명령어 처리
         else if (strcmp(tokens[0], "ls") == 0) {
@@ -194,6 +202,7 @@ int main(int argc, char *argv[]) {
         else {
             printf("command not found...\n");
         }
+        
     }
     return 0;
 }
