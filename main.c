@@ -24,6 +24,8 @@
 #include <time.h>
 #include <dirent.h>
 #include <signal.h>
+#include <errno.h>
+#include <ctype.h>
 
 
 #define MAX_INPUT_SIZE 1024
@@ -41,6 +43,9 @@ void list_directory(char *pathname);
 void print_current_directory(void);
 void change_directory(const char *path);
 void handle_interrupt(int signo);
+void copy_file(const char *source, const char *destination, bool f, bool inter, bool p, bool r);
+void print_special_char(char ch, bool v, bool e, bool t);
+void concatenate(char *tokens[]);
 
 
 int main(int argc, char *argv[]) {
@@ -149,6 +154,42 @@ int main(int argc, char *argv[]) {
             } else {
                 change_directory(tokens[1]);
             }
+        }
+
+        // cp 명령어 처리
+        else if(strcmp(tokens[0], "cp") == 0) {
+            bool f = false, inter = false, p = false, r = false;
+            char *source = NULL, *destination = NULL;
+
+            // 옵션 파싱
+            for (int i = 1; tokens[i] != NULL; i++) {
+                if (strcmp(tokens[i], "-f") == 0) {
+                    f = true;
+                } else if (strcmp(tokens[i], "-i") == 0) {
+                    inter = true;
+                } else if (strcmp(tokens[i], "-p") == 0) {
+                    p = true;
+                } else if (strcmp(tokens[i], "-r") == 0) {
+                    r = true;
+                } else {
+                    if (source == NULL) {
+                        source = tokens[i];
+                    } else {
+                        destination = tokens[i];
+                    }
+                }
+            }
+
+            if (source != NULL && destination != NULL) {
+                copy_file(source, destination, f, inter, p, r);
+            } else {
+                fprintf(stderr, "Usage: cp [-fipr] source destination\n");
+            }
+        }
+
+        // cat 명령어 처리
+        else if (strcmp(tokens[0], "cat") == 0) {
+            concatenate(tokens);
         }
         else {
             printf("command not found...\n");
@@ -719,4 +760,227 @@ void change_directory(const char *path) {
 void handle_interrupt(int signo) {
     printf("\n인터럽트 발생, 프로그램을 종료합니다...\n");
     exit(EXIT_SUCCESS);
+}
+
+void copy_file(/*char *tokens[]*/const char *source, const char *destination, bool f, bool inter, bool p, bool r) {
+    /*
+    -f: 복사할 파일이 있을 경우 삭제하고 복사
+    -i: 복사할 파일이 있을 경우 복사할 것인지 물어봄
+    -p: 원본 파일의 모든 정보를 보존한 채 복사
+    -r: 하위 디렉토리에 있는 모든 파일을 복사
+    */
+
+    struct stat file_stat, stat_buf;
+    FILE *src, *dest;
+    char buffer[1024];
+    size_t bytes;
+    char new_destination[PATH_MAX];
+
+    // 원본 파일의 메타데이터 가져오기
+    if (stat(source, &file_stat) != 0) {
+        perror("Failed to get file statistics");
+        return;
+    }
+
+    // if (stat(source, &stat_buf) != 0) {
+    //     perror("Failed to get source file stats");
+    //     return;
+    // }
+
+    if (stat(destination, &stat_buf) != 0) {
+        if (errno != ENOENT) {
+            perror("Failed to get destination stats");
+            return;
+        }
+    }
+
+    // 대상 경로 확인
+    int dest_stat_result = stat(destination, &stat_buf);
+
+    // 대상 경로가 디렉토리인 경우
+    if (dest_stat_result == 0 && S_ISDIR(stat_buf.st_mode)) {
+        const char *filename = strrchr(source, '/');
+
+        // 원본 파일 이름만 추출 (경로 제외)
+        if (filename != NULL) {
+            filename++; // '/' 이후의 문자열 시작 부분
+        } else {
+            filename = source; // '/'가 없는 경우, 전체 경로가 파일 이름
+        }
+
+        // 새로운 대상 경로 생성
+        snprintf(new_destination, PATH_MAX, "%s/%s", destination, filename);
+
+    } else {
+        strncpy(new_destination, destination, PATH_MAX);
+    }
+
+    // 파일 또는 디렉토리 존재 여부 확인
+    if (access(new_destination, F_OK) == 0) {
+        if (f) {
+            unlink(new_destination);
+        } else if (inter) {
+            printf("cp: overwrite '%s'? [y/Y]", new_destination);
+            char response[10];
+            fgets(response, 10, stdin);
+
+            // 사용자가 'y' 또는 'Y'로 응답하지 않으면 복사 취소
+            if (response[0] != 'y' && response[0] != 'Y') {
+                return;
+            }
+        } else {
+            fprintf(stderr, "cp: '%s' already exists\n", new_destination);
+            return;
+        }
+    }
+
+    // '-r'
+    if (r && S_ISDIR(stat_buf.st_mode)) {
+        DIR *dir = opendir(source);
+        if (dir == NULL) {
+            perror("Failed to open source directory");
+            return;
+        }
+
+        // 대상 디렉토리 생성
+        mkdir(destination, stat_buf.st_mode);
+
+        struct dirent *entry;
+
+        // 디렉토리 내의 각 파일 및 서브디렉토리에 대해 재귀적으로 복사
+        while ((entry = readdir(dir)) != NULL) {
+            if (strcmp(entry->d_name, ".") == 0 || strcmp(entry->d_name, "..") == 0)
+                continue;
+
+            char new_source[PATH_MAX];
+            // char new_destination[PATH_MAX];
+
+            snprintf(new_source, PATH_MAX, "%s/%s", source, entry->d_name);
+            snprintf(new_destination, PATH_MAX, "%s/%s", destination, entry->d_name);
+
+            // 재귀적으로 복사 함수 호출
+            copy_file(new_source, new_destination, f, inter, p, r);
+        }
+
+        closedir(dir);
+
+    } else {
+        // 파일 열기
+        src = fopen(source, "rb");
+        if (!src) {
+            perror("Failed to open source file");
+            return;
+        }
+
+        dest = fopen(new_destination, "wb");
+
+        if (!dest) {
+            perror("Failed to open destination file");
+            fclose(src);
+            return;
+        }
+
+        // 파일 복사
+        while ((bytes = fread(buffer, 1, sizeof(buffer), src)) > 0) {
+            fwrite(buffer, 1, bytes, dest);
+        }
+
+        // 파일 닫기
+        fclose(src);
+        fclose(dest);
+    }
+
+    // '-p'
+    if (p) {
+        if (chmod(new_destination, file_stat.st_mode) != 0) {
+            perror("Failed to copy file metadata");
+            return;
+        }
+    }
+
+    printf("File copied successfully\n");
+}
+
+/* 문자를 특수 형식으로 출력 */
+void print_special_char(char ch, bool v, bool e, bool t) {
+
+    // v 옵션이 활성화되어 있을 경우
+    if (v) {
+        // 탭 문자인 경우 t 옵션이 활성화되어 있으면 ^I로 표시
+        if (ch == '\t' && t) {
+            printf("^I");
+        // 제어 문자인 경우
+        } else if (ch < 32 || ch == 127) {
+            // DEL 문자인 경우 '?'로 표시하고, 그 외는 ^와 함께 ASCII 코드로 변환하여 표시
+            printf("^%c", ch == 127 ? '?' : ch + 64);
+        } else {
+            putchar(ch);
+        }
+    } else {
+        putchar(ch);
+    }
+
+    // e 옵션이 활성화되어 있고, 현재 문자가 줄바꿈('\n')인 경우 줄 끝에 $ 추가
+    if (ch == '\n' && e) {
+        printf("$");
+    }
+}
+
+/* cat - 파일 내용 처리 */
+void concatenate(char *tokens[]) {
+    /*
+    -b: 비어있지 않은 라인에 행 번호를 붙임
+    -n: 모든 라인에 행 번호를 붙임
+    -v: 출력할 수 없는 문자를 출력.
+    -e: -vE 옵션과 같음. 라인의 끝에 "$"를 표시함
+    -t: -vT 옵션과 같음. ^I로 TAB 문자를 표시함
+    */
+    bool b = false, n = false, v = false, e = false, t = false;
+    FILE *file;
+    char ch;
+    int line_number = 0;
+
+    for (int i = 1; tokens[i] != NULL; i++) {
+        // 옵션 파싱
+        if (strcmp(tokens[i], "-b") == 0) {
+            b = true;
+        } else if (strcmp(tokens[i], "-n") == 0) {
+            n = true;
+        } else if (strcmp(tokens[i], "-v") == 0) {
+            v = true;
+        } else if (strcmp(tokens[i], "-e") == 0) {
+            e = true; v = true;
+        } else if (strcmp(tokens[i], "-t") == 0) {
+            t = true; v = true;
+        } else {
+            // 파일 처리
+            file = fopen(tokens[i], "r");
+            if (file == NULL) {
+                perror("Error opening file");
+                continue;
+            }
+
+            // 새 라인 시작 플래그
+            bool new_line = true;
+            // 파일 끝까지 한 문자식 읽기
+            while ((ch = fgetc(file)) != EOF) {
+                // 새 라인 이면서 '-n' 옵션 활성화 또는 '-b' 옵션이 활성화되고 현재 줄이 공백이 아닐때
+                if (new_line && (n || (b && !isspace(ch)))) {
+                    // 줄 번호 출력
+                    printf("%6d\t", ++line_number);
+                }
+                
+                // v, e, t 옵션 처리
+                print_special_char(ch, v, e, t);
+
+                // 줄 바꿈 문자를 만나면 new_line = true (새 라인 시작)
+                // 만나지 않으면 new_line = false
+                new_line = (ch == '\n');
+            }
+
+            fclose(file);
+        }
+    }
+
+    printf("\n");
 }
