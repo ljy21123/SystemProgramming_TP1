@@ -8,6 +8,7 @@
     2023-11-11: exit, 파일재지향, 파이프, rm, mv 기능 생성,
                 다른 코드에 정의된 mkdir과 통합,
                 rmdir, ln, 백그라운드 실행 기능 생성
+    2023-11-12: rm 디렉토리 순회 삭제 구현
 
 */
 
@@ -33,12 +34,14 @@ void move_file(char *tokens[]);
 void handle_redirection(char *tokens[]);
 void make_directory(char *pathname);
 void remove_directory(char *pathname);
+void removeDirectory(const char *path, bool i, bool v);
 void link_file(char *tokens[]);
 void bg_run(char *tokens[], bool background);
 void list_directory(char *pathname);
 void print_current_directory(void);
 void change_directory(const char *path);
 void handle_interrupt(int signo);
+
 
 int main(int argc, char *argv[]) {
     char input[MAX_INPUT_SIZE];
@@ -404,6 +407,98 @@ void move_file(char *tokens[]) {
     free(target);
 }
 
+void removeDirectory(const char *path, bool i, bool v) {
+    DIR *dir;
+    struct dirent *entry;
+    char fullpath[MAX_INPUT_SIZE];
+
+    dir = opendir(path);
+    if (dir == NULL) {
+        perror("Error opening directory");
+        exit(EXIT_FAILURE);
+    }
+
+    // 디렉토리와 그 안의 모든 내용물을 삭제
+    while ((entry = readdir(dir)) != NULL) {
+        if (strcmp(entry->d_name, ".") != 0 && strcmp(entry->d_name, "..") != 0) {
+            snprintf(fullpath, sizeof(fullpath), "%s/%s", path, entry->d_name);
+
+            struct stat file_stat;
+            if (lstat(fullpath, &file_stat) == -1) {
+                perror("Error getting file status");
+                continue;
+            }
+
+            if (S_ISDIR(file_stat.st_mode)) {
+                // 디렉토리일 때 재귀적으로 호출
+                removeDirectory(fullpath, i, v);
+            } else {
+                // 파일일 때 삭제
+                if (i) {
+                    char answer[MAX_INPUT_SIZE];
+                    printf("delete the file '%s'? (y/n): ", fullpath);
+                    // printf("파일 '%s'을(를) 삭제하시겠습니까? (y/n): ", fullpath);
+                    fgets(answer, sizeof(answer), stdin);
+
+                    // 개행 문자를 제거
+                    answer[strcspn(answer, "\n")] = '\0';
+
+                    if (strcmp(answer, "n") == 0 || strcmp(answer, "N") == 0) {
+                        // printf("파일 '%s' 삭제가 취소되었습니다.\n", fullpath);
+                        continue; // 'n'이 입력되면 현재 파일을 건너뛰고 다음 파일로 이동
+                    } else if (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0) {
+                        // printf("잘못된 입력입니다. 'y' 또는 'n'을 입력하세요.\n");
+                        printf("Invalid input. Please enter 'y' or 'n'.\n");
+                        continue; // 'y'나 'n'이 아닌 경우 다음 파일로 이동
+                    }
+                }
+
+                // 파일을 삭제
+                if (remove(fullpath) != 0) {
+                    // perror("파일 삭제 중 오류 발생");
+                    perror("Error removing file");
+                } else {
+                    if (v) {
+                        // printf("파일 '%s'을(를) 삭제했습니다.\n", fullpath);
+                        printf("removed file '%s'\n", fullpath);
+                    }
+                }
+            }
+        }
+    }
+
+    closedir(dir);
+
+    if (i) {
+        char answer[MAX_INPUT_SIZE];
+        printf("delete the directory '%s'? (y/n): ", path);
+        // printf("파일 '%s'을(를) 삭제하시겠습니까? (y/n): ", fullpath);
+        fgets(answer, sizeof(answer), stdin);
+
+        // 개행 문자를 제거
+        answer[strcspn(answer, "\n")] = '\0';
+
+        if (strcmp(answer, "n") == 0 || strcmp(answer, "N") == 0) {
+            // printf("파일 '%s' 삭제가 취소되었습니다.\n", fullpath);
+            return; // 'n'이 입력되면 현재 파일을 건너뛰고 다음 파일로 이동
+        } else if (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0) {
+            // printf("잘못된 입력입니다. 'y' 또는 'n'을 입력하세요.\n");
+            printf("Invalid input. Please enter 'y' or 'n'.\n");
+            return; // 'y'나 'n'이 아닌 경우 다음 파일로 이동
+        }
+    }
+    // 디렉토리를 삭제
+    if (rmdir(path) != 0) {
+        // perror("디렉토리 삭제 중 오류 발생");
+        perror("Error removing Directory");
+    } else {
+        if (v) {
+            // printf("디렉토리 '%s'을(를) 삭제했습니다.\n", path);
+            printf("removed Directory '%s'\n", path);
+        }
+    }
+}
+
 void remove_file(char *tokens[]) {
     // 옵션 파싱
     bool i = false, r = false, v = false;
@@ -427,32 +522,7 @@ void remove_file(char *tokens[]) {
             if (S_ISDIR(file_stat.st_mode)) {
                 // 디렉토리일 때의 처리
                 if (r) {
-                    // -r 옵션이 주어진 경우에만 디렉토리를 삭제
-                    // i: 파일을 삭제할지 물어봄
-                    if (i) {
-                        char answer[MAX_INPUT_SIZE];
-                        printf("delete the directory? (y/n): ");
-                        fgets(answer, sizeof(answer), stdin);
-
-                        // 개행 문자를 제거
-                        answer[strcspn(answer, "\n")] = '\0';
-
-                        if (strcmp(answer, "n") == 0 || strcmp(answer, "N") == 0) {
-                            continue; // 'n'이 입력되면 현재 파일을 건너뛰고 다음 파일로 이동
-                        } else if (strcmp(answer, "y") != 0 && strcmp(answer, "Y") != 0) { 
-                            printf("Invalid input. Please enter 'y' or 'n'.\n");
-                            continue; // 'y'나 'n'이 아닌 경우 다음 파일로 이동
-                        }
-                    }
-
-                    if (v) {
-                        printf("removed directory '%s'\n", tokens[k]);
-                    }
-
-                    // 디렉토리를 삭제
-                    if (remove(tokens[k]) != 0) {
-                        perror("Error removing directory");
-                    }
+                    removeDirectory(tokens[k], i, v);
                 } else {
                     // 에러 처리: 디렉토리를 삭제하려는데 -r 옵션이 주어지지 않은 경우
                     fprintf(stderr, "rm: cannot remove '%s': Is a directory\n", tokens[k]);
