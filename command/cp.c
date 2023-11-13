@@ -152,8 +152,8 @@ void copy_file(/*char *tokens[]*/const char *source, const char *destination, bo
 int main(int argc, char *argv[]) {
 
     if (argc == 1){
-        printf("사용법: ln <파일1> <파일2>\n");
-        printf("파일 간의 링크를 생성합니다.\n");
+        printf("사용법: cp <파일/폴더> <파일/폴더>\n");
+        printf("파일이나 폴더를 복사합니다.\n");
         printf("\n옵션:\n");
         printf("  -f:  복사할 파일이 있을 경우 삭제하고 복사\n");
         printf("  -i:  복사할 파일이 있을 경우 복사할 것인지 물어봄\n");
