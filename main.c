@@ -1,3 +1,20 @@
+
+/*
+    명령어 형식은 input에 저장된 후 '\n'(엔터)를 제거하고 마지막에 '\0'를 추가하여 입력을 마치고
+    공백을 기준으로 나누어 tokens에 저장됩니다.
+    예) mv -v a.txt test_dir/ => ["mv", "-v", "a.txt", "test_dir/"] 형식으로 변환
+    tokens[0] => mv 출력됨.
+
+    2023-11-09: mkdir 기능 생성
+    2023-11-11: exit, 파일재지향, 파이프, rm, mv 기능 생성,
+                다른 코드에 정의된 mkdir과 통합,
+                rmdir, ln, 백그라운드 실행 기능 생성,
+    2023-11-12: rm 디렉토리 순회 삭제 구현,
+                cp, cat 기능 생성
+    2023-11-13: 쉘 구조 변경
+*/
+
+
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
@@ -30,6 +47,10 @@ int main(){
         // 개행 문자 제거하고 명령어의 끝을 표기
         input[strcspn(input, "\n")] = '\0';
         
+        // exit입력시 쉘 종료
+        if (strcmp(input, "exit") == 0) 
+            break;
+
         // 입력 토큰화
         narg = get_tokens(input, tokens);
 
@@ -39,7 +60,7 @@ int main(){
         //     printf("%s ", tokens[i]);
 
         pid = fork();
-    
+        
         if (pid == 0)
             execvp(tokens[0], tokens);
         else if (pid > 0)
