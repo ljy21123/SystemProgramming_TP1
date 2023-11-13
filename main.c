@@ -60,6 +60,22 @@ int main(int argc, char *argv[]){
         // for(int i=0; tokens[i]!=NULL; i++)
         //     printf("%s ", tokens[i]);
 
+        bool background = false;
+        // 백그라운드 확인
+        for (int i = 0; tokens[i] != NULL; i++) {
+            // '&' 문자가 토큰의 끝에 있는지 확인
+            if (tokens[i][strlen(tokens[i]) - 1] == '&') {
+                background = true;
+                // '&' 문자 제거
+                tokens[i][strlen(tokens[i]) - 1] = '\0';
+                // 빈 토큰인 경우 넘어감
+                if (strlen(tokens[i]) == 0) {
+                    tokens[i] = NULL;
+                }
+                break;
+            }
+        }
+
         // 리다이렉션 및 파이프 확인
         bool pipe = false;
         bool inputRedirect = false;
@@ -84,7 +100,7 @@ int main(int argc, char *argv[]){
                 // 경로에 있는 실행파일 실행
                 execvp("./command/handleRedirection", tokens);
             }
-            else{
+            else {
                 // 명령어 실행파일 경로를 저장할 변수
                 char command_path[256];
                 // 입력된 명령어에 실행파일 경로 추가
@@ -96,8 +112,13 @@ int main(int argc, char *argv[]){
             // 실행파일이 없다면 오류출력
             fprintf(stderr, "%s: Command not found\n", tokens[0]);
         } else if (pid > 0){
-            wait((int *) 0);
-        } else{
+            if (!background) {
+                // 백그라운드가 아닌 경우에만 기다림
+                 wait((int *) 0);
+            } else {
+                printf("Process running in background with PID: %d\n", pid);
+            }
+        } else {
             perror("fork failed");
         }
     }
