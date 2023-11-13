@@ -11,15 +11,14 @@
                 rmdir, ln, 백그라운드 실행 기능 생성,
     2023-11-12: rm 디렉토리 순회 삭제 구현,
                 cp, cat 기능 생성
-    2023-11-13: 쉘 구조 변경
+    2023-11-13: 쉘 구조 변경 
 */
 
 
 #include <stdio.h>
-#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
-#include <sys/types.h>
+#include <stdbool.h>
 #include <sys/wait.h>
 
 #define MAX_INPUT_SIZE 1024
@@ -59,15 +58,39 @@ int main(){
         // for(int i=0; tokens[i]!=NULL; i++)
         //     printf("%s ", tokens[i]);
 
+        // 리다이렉션 및 파이프 확인
+        bool pipe = false;
+        bool inputRedirect = false;
+        bool outputRedirect = false;
+        for (int i = 0; tokens[i] != NULL; i++) {
+            if (strcmp(tokens[i], "<") == 0)
+                inputRedirect = true;
+            if (strcmp(tokens[i], ">") == 0)
+                outputRedirect = true;
+            if (strcmp(tokens[i], "|") == 0) 
+                pipe = true;
+        }
+
+        // if (pipe || inputRedirect || outputRedirect)
+        //     tokens[0]=handleRedirection(tokens);
+
+        // 자식 프로세스 생성
         pid = fork();
         
         if (pid == 0){
-            char command_path[256];
-            snprintf(command_path, sizeof(command_path), "./command/%s", tokens[0]);
-            command_path;
-
-            execvp(command_path, tokens);
-            // "command not found" 메시지를 출력
+            if (pipe || inputRedirect || outputRedirect){
+                // 경로에 있는 실행파일 실행
+                execvp("./command/handleRedirection", tokens);
+            }
+            else{
+                // 명령어 실행파일 경로를 저장할 변수
+                char command_path[256];
+                // 입력된 명령어에 실행파일 경로 추가
+                snprintf(command_path, sizeof(command_path), "./command/%s", tokens[0]);
+                // 경로에 있는 실행파일 실행
+                execvp(command_path, tokens);
+            }
+            // 실행파일이 없다면 오류출력
             fprintf(stderr, "%s: Command not found\n", tokens[0]);
         } else if (pid > 0){
             wait((int *) 0);
