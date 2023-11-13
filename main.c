@@ -61,12 +61,19 @@ int main(){
 
         pid = fork();
         
-        if (pid == 0)
-            execvp(tokens[0], tokens);
-        else if (pid > 0)
+        if (pid == 0){
+            char command_path[256];
+            snprintf(command_path, sizeof(command_path), "./command/%s", tokens[0]);
+            command_path;
+
+            execvp(command_path, tokens);
+            // "command not found" 메시지를 출력
+            fprintf(stderr, "%s: Command not found\n", tokens[0]);
+        } else if (pid > 0){
             wait((int *) 0);
-        else
+        } else{
             perror("fork failed");
+        }
     }
     return 0;
 }
