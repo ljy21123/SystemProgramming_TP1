@@ -13,7 +13,7 @@
 #include <limits.h> 
 
 #define MAX_INPUT_SIZE 1024
-void removeDirectory(const char *path, bool i, bool v) {
+void removeDirectory(const char *path, bool i, bool v, bool f) {
     DIR *dir;
     struct dirent *entry;
     char fullpath[MAX_INPUT_SIZE];
@@ -37,7 +37,7 @@ void removeDirectory(const char *path, bool i, bool v) {
 
             if (S_ISDIR(file_stat.st_mode)) {
                 // 디렉토리일 때 재귀적으로 호출
-                removeDirectory(fullpath, i, v);
+                removeDirectory(fullpath, i, v, f);
             } else {
                 // 파일일 때 삭제
                 if (i) {
@@ -108,7 +108,7 @@ void removeDirectory(const char *path, bool i, bool v) {
 
 void remove_file(char *tokens[]) {
     // 옵션 파싱
-    bool i = false, r = false, v = false;
+    bool i = false, r = false, v = false, f = false;
 
     int s = 1;
 
@@ -119,9 +119,13 @@ void remove_file(char *tokens[]) {
             r = true;
         if (strchr(tokens[s], 'v') != NULL)
             v = true;
+        if (strchr(tokens[s], 'v') != NULL)
+            f = true;
         s = 2;   
     }
-
+    if (f == true && i == true)
+        i == false;
+    
     for (int k = s; tokens[k] != NULL; k++) {
         struct stat file_stat;
 
@@ -129,7 +133,7 @@ void remove_file(char *tokens[]) {
             if (S_ISDIR(file_stat.st_mode)) {
                 // 디렉토리일 때의 처리
                 if (r) {
-                    removeDirectory(tokens[k], i, v);
+                    removeDirectory(tokens[k], i, v, f);
                 } else {
                     // 에러 처리: 디렉토리를 삭제하려는데 -r 옵션이 주어지지 않은 경우
                     fprintf(stderr, "rm: cannot remove '%s': Is a directory\n", tokens[k]);
@@ -158,20 +162,32 @@ void remove_file(char *tokens[]) {
 
                 // 파일을 삭제
                 if (remove(tokens[k]) != 0) {
-                    perror("Error removing file");
+                    if (!f)
+                        perror("Error removing file");
                 }
             } else {
                 // 에러 처리: 파일도 아니고 디렉토리도 아닌 경우
                 perror("Error removing file");
             }
         } else {
-            // 에러 처리: 파일 정보를 가져오는데 실패한 경우
-            perror("Error getting file information");
+            if (!f)
+                // 에러 처리: 파일 정보를 가져오는데 실패한 경우
+                perror("Error getting file information");
         }
     }
 }
 
 int main(int argc, char *argv[]){
+    if (argc == 1){
+        printf("사용법: rm <파일1> <파일2> ...\n");
+        printf("파일을 삭제합니다.\n");
+        printf("\n옵션:\n");
+        printf("  -f          존재하지 않는 파일 및 인자를 무시하고 물어보지 않음\n");
+        printf("  -i          각 파일을 삭제하기 전에 확인 메시지 출력\n");
+        printf("  -r          디렉토리 및 그 내용물을 재귀적으로 삭제\n");
+        printf("  -v          삭제된 파일 및 디렉토리를 출력\n");
+        return 0;
+    }
     remove_file(argv);
     return 0;
 }
