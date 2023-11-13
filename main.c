@@ -26,7 +26,7 @@
 
 int get_tokens(char *cmd, char **tokens);
 
-int main(){
+int main(int argc, char *argv[]){
     char input[MAX_INPUT_SIZE];
     char *tokens[MAX_TOKENS];
     int narg;
@@ -45,13 +45,15 @@ int main(){
 
         // 개행 문자 제거하고 명령어의 끝을 표기
         input[strcspn(input, "\n")] = '\0';
-        
-        // exit입력시 쉘 종료
-        if (strcmp(input, "exit") == 0) 
-            break;
 
         // 입력 토큰화
         narg = get_tokens(input, tokens);
+
+        // exit입력시 쉘 종료
+        if (strcmp(input, "exit") == 0){
+            printf("bye\n");
+            break;
+        }
 
         // 분할 토큰 출력
         // printf("%d\n", narg);
@@ -89,6 +91,7 @@ int main(){
                 snprintf(command_path, sizeof(command_path), "./command/%s", tokens[0]);
                 // 경로에 있는 실행파일 실행
                 execvp(command_path, tokens);
+                // execvp(tokens[0], tokens);
             }
             // 실행파일이 없다면 오류출력
             fprintf(stderr, "%s: Command not found\n", tokens[0]);
