@@ -1186,17 +1186,18 @@ void concatenate(char *tokens[]) {
     int line_number = 0;
 
     for (int i = 1; tokens[i] != NULL; i++) {
-        // 옵션 파싱
-        if (strcmp(tokens[i], "-b") == 0) {
-            b = true;
-        } else if (strcmp(tokens[i], "-n") == 0) {
-            n = true;
-        } else if (strcmp(tokens[i], "-v") == 0) {
-            v = true;
-        } else if (strcmp(tokens[i], "-e") == 0) {
-            e = true; v = true;
-        } else if (strcmp(tokens[i], "-t") == 0) {
-            t = true; v = true;
+        if (tokens[i][0] == '-') {
+            // 옵션 파싱
+            for (int j = 1; tokens[i][j] != '\0'; j++) {
+                switch (tokens[i][j]) {
+                    case 'b': b = true; break;
+                    case 'n': n = true; break;
+                    case 'v': v = true; break;
+                    case 'e': e = true; v = true; break;
+                    case 't': t = true; v = true; break;
+                    default: printf("cat [-bnvet] ...");
+                }
+            }
         } else {
             // 파일 처리
             file = fopen(tokens[i], "r");
