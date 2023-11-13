@@ -40,7 +40,7 @@ void make_directory(char *pathname);
 void remove_directory(char *pathname);
 void removeDirectory(const char *path, bool i, bool v);
 void link_file(char *tokens[]);
-void bg_run(char *tokens[], bool background);
+void bg_run(char *tokens[]);
 void list_directory(char *tokens[]);
 void print_current_directory(void);
 void change_directory(const char *path);
@@ -119,7 +119,7 @@ int main(int argc, char *argv[]) {
         }
         // 백그라운드 실행 명령어 처리
         else if (background) {
-            bg_run(tokens, background);
+            bg_run(tokens);
         }
         // 파이프 처리
         else if (pipe){
@@ -280,7 +280,7 @@ void link_file(char *tokens[]) {
     }
 }
 
-void bg_run(char *tokens[], bool background) {
+void bg_run(char *tokens[]) {
     pid_t child_process = fork();
     if (child_process == 0) {
         // 자식 프로세스: 명령어 실행
@@ -292,13 +292,8 @@ void bg_run(char *tokens[], bool background) {
         exit(EXIT_FAILURE);
     } else {
         // 백그라운드 실행인 경우
-        if (background) {
-            printf("Process running in background with PID: %d\n", child_process);
-            // waitpid를 호출하지 않아 백그라운드 프로세스가 독립적으로 실행됨
-        } else {
-            // 부모 프로세스: 자식 프로세스 종료를 기다림
-            waitpid(child_process, NULL, 0);
-        }
+        printf("Process running in background with PID: %d\n", child_process);
+        // waitpid를 호출하지 않아 백그라운드 프로세스가 독립적으로 실행됨
     }
 }
 
