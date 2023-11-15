@@ -13,27 +13,17 @@ void handleRedirection(char* tokens[]) {
 
     int input_redirection = -1;
     int output_redirection = -1;
-    int pipe_position = -1;
 
     // 리다이렉션 심볼의 위치를 탐색
     for (int i = 0; tokens[i] != NULL; i++) {
-        if (strcmp(tokens[i], "<") == 0) {
+        if (strcmp(tokens[i], "<") == 0) 
             input_redirection = i;
-        } else if (strcmp(tokens[i], ">") == 0) {
+        else if (strcmp(tokens[i], ">") == 0) 
             output_redirection = i;
-        } else if (strcmp(tokens[i], "|") == 0) {
-            pipe_position = i;
-        }
     }
 
-    // 파이프 처리
-    if (pipe_position != -1) {
-
-    }
 
     
-    // 입력 리다이렉션 처리
-    if (input_redirection != -1) {
         // 입력 리다이렉션 처리
         // 파일을 읽기 전용으로 열고 파일 디스크립터 저장
         int fd = open(tokens[input_redirection + 1], O_RDONLY);

@@ -96,9 +96,12 @@ int main(int argc, char *argv[]){
         pid = fork();
         
         if (pid == 0){
-            if (pipe || inputRedirect || outputRedirect){
+            if (pipe){
                 // 경로에 있는 실행파일 실행
                 execvp("./command/pipe", tokens);
+            }
+            else if(inputRedirect || outputRedirect){
+                execvp("./command/redirect_input_output", tokens);
             }
             else {
                 // 명령어 실행파일 경로를 저장할 변수
