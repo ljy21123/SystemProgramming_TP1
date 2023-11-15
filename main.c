@@ -98,7 +98,7 @@ int main(int argc, char *argv[]){
         if (pid == 0){
             if (pipe || inputRedirect || outputRedirect){
                 // 경로에 있는 실행파일 실행
-                execvp("./command/handleRedirection", tokens);
+                execvp("./command/pipe", tokens);
             }
             else {
                 // 명령어 실행파일 경로를 저장할 변수

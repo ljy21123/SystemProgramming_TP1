@@ -26,52 +26,10 @@ void handleRedirection(char* tokens[]) {
         }
     }
 
-    // // 파이프 처리
-    // if (pipe_position != -1) {
-    //     // 파이프를 위한 파일 디스크립터 배열
-    //     int pipe_fd[2];
-        
-    //     // 파이프 생성
-    //     if (pipe(pipe_fd) == -1) {
-    //         perror("pipe");
-    //         return;
-    //     }
+    // 파이프 처리
+    if (pipe_position != -1) {
 
-    //     // 부모 프로세스에서 자식 프로세스로의 표준 출력을 파이프로 연결
-    //     dup2(pipe_fd[1], 1);
-    //     close(pipe_fd[1]);
-
-    //     // 자식 프로세스 생성
-    //     pid_t pid = fork();
-        
-    //     if (pid == 0) {
-    //         // 자식 프로세스에서 부모 프로세스로의 표준 입력을 파이프로 연결
-    //         dup2(pipe_fd[0], 0);
-    //         close(pipe_fd[0]);
-
-    //         // "|"를 기준으로 나누어진 명령어를 각각 실행
-    //         char* rest = tokens[pipe_position + 1];
-    //         char* token = strsep(&rest, "|");
-
-    //         while (token != NULL) {
-    //             // 나누어진 명령어를 실행파일로 넣어 실행
-    //             char command_path[256];
-    //             snprintf(command_path, sizeof(command_path), "./command/handleRedirection");
-    //             execlp(command_path, command_path, token, NULL);
-    //             perror("execlp");
-    //             exit(EXIT_FAILURE);
-
-    //             // 다음 토큰으로 이동
-    //             token = strsep(&rest, "|");
-    //         }
-    //     } else if (pid > 0) {
-    //         // 부모 프로세스에서 자식 프로세스의 종료를 기다림
-    //         wait(NULL);
-    //     } else {
-    //         perror("fork failed");
-    //         return;
-    //     }
-    // } 
+    }
 
     
     // 입력 리다이렉션 처리
@@ -116,10 +74,10 @@ void handleRedirection(char* tokens[]) {
         // 입력된 명령어에 실행파일 경로 추가
         snprintf(command_path, sizeof(command_path), "./command/%s", tokens[0]);
         // 경로에 있는 실행파일 실행
-        //execvp(command_path, tokens);
+        execvp(command_path, tokens);
 
         // 파일 리다이렉션 실험을 위한 코드
-        execvp(tokens[0], tokens);
+        // execvp(tokens[1], tokens);
         
         // 실행파일이 없다면 오류출력
         fprintf(stderr, "%s: Command not found\n", tokens[0]);
