@@ -9,10 +9,10 @@
 
 int main(int argc, char *argv[]) {
     int start = 0;
-    if (argc < 2){
+    if (argc < 2) {
         printf("명령어를 확인해 주세요!");
         return 0;
-    }  
+    }
 
     bool has_pipe = false;
     bool output_redirection = false;
@@ -27,12 +27,12 @@ int main(int argc, char *argv[]) {
             break; // 첫 번째 파이프를 만나면 반복문 탈출
         }
     }
-    
-    if(strcmp(argv[0], "./") == 0) // 만약 실행파일 이름이라면
-        start++;   
+
+    if (strcmp(argv[0], "./") == 0) // 만약 실행파일 이름이라면
+        start++;
 
     // 파이프가 있다면
-    if (has_pipe){
+    if (has_pipe) {
         // 첫 번째 배열 동적 할당 및 값 복사
         char **firstArray = (char **)malloc((pipe_index + 1) * sizeof(char *));
         for (int i = 0, j = start; j < pipe_index; i++, j++) {
@@ -46,7 +46,11 @@ int main(int argc, char *argv[]) {
             secondArray[j] = argv[i];
         }
         secondArray[argc - pipe_index - 1] = NULL;
-        
+
+        // 현재 파일 디스크립터 상태 저장
+        int saved_stdout = dup(STDOUT_FILENO);
+        int saved_stdin = dup(STDIN_FILENO);
+
         // 파이프 생성
         int pipe_fd[2];
         if (pipe(pipe_fd) == -1) {
@@ -61,8 +65,10 @@ int main(int argc, char *argv[]) {
             dup2(pipe_fd[1], STDOUT_FILENO);
             close(pipe_fd[0]);
             close(pipe_fd[1]);
-                    
-            for (int i=0; firstArray[i]!=NULL; i++){
+
+            // 명령어 실행파일 경로를 저장할 변수
+            char command_path[256];
+            for (int i = 0; firstArray[i] != NULL; i++) {
                 if (strcmp(firstArray[i], "<") == 0) {
                     input_redirection = true;
                 } else if (strcmp(firstArray[i], ">") == 0) {
@@ -70,15 +76,13 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            // 명령어 실행파일 경로를 저장할 변수
-            char command_path[256];
-            if (input_redirection  || output_redirection){
+            // 리다이렉션이 있는 경우 처리
+            if (input_redirection || output_redirection) {
                 strcpy(command_path, "./command/redirect_input_output");
                 execvp(command_path, firstArray);
                 perror("execvp first command");
                 exit(EXIT_FAILURE);
-            }
-            else{
+            } else {
                 // 입력된 명령어에 실행파일 경로 추가
                 snprintf(command_path, sizeof(command_path), "./command/%s", firstArray[0]);
                 // 첫 번째 명령어 실행
@@ -95,8 +99,6 @@ int main(int argc, char *argv[]) {
 
         waitpid(pid1, NULL, 0);
 
-        input_redirection = false;
-        output_redirection = false;
         // 두 번째 자식 프로세스 생성
         pid_t pid2 = fork();
         if (pid2 == 0) {
@@ -105,7 +107,9 @@ int main(int argc, char *argv[]) {
             close(pipe_fd[0]);
             close(pipe_fd[1]);
 
-            for (int i=0; secondArray[i]!=NULL; i++){
+            // 명령어 실행파일 경로를 저장할 변수
+            char command_path[256];
+            for (int i = 0; secondArray[i] != NULL; i++) {
                 if (strcmp(secondArray[i], "<") == 0) {
                     input_redirection = true;
                 } else if (strcmp(secondArray[i], ">") == 0) {
@@ -113,16 +117,13 @@ int main(int argc, char *argv[]) {
                 }
             }
 
-            // 명령어 실행파일 경로를 저장할 변수
-            char command_path[256];
-            if (input_redirection  || output_redirection){
+            // 리다이렉션이 있는 경우 처리
+            if (input_redirection || output_redirection) {
                 strcpy(command_path, "./command/redirect_input_output");
                 execvp(command_path, secondArray);
                 perror("execvp first command");
                 exit(EXIT_FAILURE);
-            }
-            else{
-
+            } else {
                 // 입력된 명령어에 실행파일 경로 추가
                 snprintf(command_path, sizeof(command_path), "./command/%s", secondArray[0]);
                 // 두 번째 명령어 실행
@@ -141,8 +142,16 @@ int main(int argc, char *argv[]) {
         // 두 자식 프로세스의 종료를 기다림
         waitpid(pid2, NULL, 0);
 
-        free (firstArray);
-        free (secondArray);
+        // 파일 디스크립터 복원
+        dup2(saved_stdout, STDOUT_FILENO);
+        dup2(saved_stdin, STDIN_FILENO);
+
+        close(saved_stdout);
+        close(saved_stdin);
+
+        free(firstArray);
+        free(secondArray);
+        return 0;
     }
     return 0;
 }

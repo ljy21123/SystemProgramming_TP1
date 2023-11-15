@@ -24,6 +24,8 @@ void handleRedirection(char* tokens[]) {
 
 
     
+    // 입력 리다이렉션 처리
+    if (input_redirection != -1) {
         // 입력 리다이렉션 처리
         // 파일을 읽기 전용으로 열고 파일 디스크립터 저장
         int fd = open(tokens[input_redirection + 1], O_RDONLY);
