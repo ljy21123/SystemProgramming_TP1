@@ -4,144 +4,168 @@
 #include <stdbool.h>
 #include <unistd.h>
 #include <sys/wait.h>
-#include <sys/types.h>
-#include <fcntl.h>    // open
 
-int main(int argc, char *argv[]) {
-    if (argc < 2) {
-        printf("명령어를 확인해 주세요!");
-        return 0;
+int main(int argc, char* argv[]) {
+    // 문자열 처리 변수
+    int s_index = 0;
+    int pipe_index = 0;
+    int num_pipes = 0;
+    char **temp_command;
+
+    // 파이프 개수 카운트
+    for(int i=0; i<argc; i++){
+        if (strcmp(argv[i], "|") == 0)
+            num_pipes++;
+    }  
+
+    // 리다이렉션 키워드가 있는지 저장
+    bool redirection = false;
+
+    // pipe처리를 위한 변수
+    int pipes[num_pipes][2];
+    pid_t pids[num_pipes + 1];
+    int pids_count = num_pipes + 1;
+
+    // 파이프들을 생성
+    for (int i = 0; i < num_pipes; ++i) {
+        if (pipe(pipes[i]) == -1) {
+            perror("pipe");
+            exit(EXIT_FAILURE);
+        }
     }
-
-    bool output_redirection = false;
-    bool input_redirection = false;
-    int pipe_index = -1;
-
-    // 리다이렉션 심볼의 위치를 탐색
-    for (int i = 0; i < argc; i++) {
+    
+    // 처음 파이프의 위치를 탐색
+    for (int i = s_index; i < argc; i++) {
         if (strcmp(argv[i], "|") == 0) {
             pipe_index = i;
-            break; // 첫 번째 파이프를 만나면 반복문 탈출
+            break;
+        }
+    }
+    // 첫번째 명령어를 잘라내어 보관
+    temp_command = (char **)malloc((pipe_index - s_index + 1) * sizeof(char *));
+    for (int i = s_index; i < pipe_index; i++) {
+            temp_command[i - s_index] = argv[i];
+        }
+    temp_command[pipe_index - s_index] = NULL;
+
+    // 리다이렉션이 존재하는지 파악
+    for (int i=0; temp_command[i]!= NULL;i++){
+        if ((strcmp(temp_command[i], "<") == 0) || (strcmp(temp_command[i], ">") == 0)) {
+            redirection = true;
+            break;
         }
     }
 
-    // 첫 번째 배열 동적 할당 및 값 복사
-    char **firstArray = (char **)malloc((pipe_index + 1) * sizeof(char *));
-    for (int i = 0, j = 0; j < pipe_index; i++, j++) {
-        firstArray[i] = argv[j];
-    }
-    firstArray[pipe_index] = NULL; // 배열 끝을 나타내기 위해 NULL 추가
-
-    // 두 번째 배열 동적 할당 및 값 복사
-    char **secondArray = (char **)malloc((argc - pipe_index) * sizeof(char *));
-    for (int i = pipe_index + 1, j = 0; i < argc; i++, j++) {
-        secondArray[j] = argv[i];
-    }
-    secondArray[argc - pipe_index - 1] = NULL;
-
-    // 현재 파일 디스크립터 상태 저장
-    int saved_stdout = dup(STDOUT_FILENO);
-    int saved_stdin = dup(STDIN_FILENO);
-
-    // 파이프 생성
-    int pipe_fd[2];
-    if (pipe(pipe_fd) == -1) {
-        perror("pipe");
-        exit(EXIT_FAILURE);
-    }
-
-    // 첫 번째 자식 프로세스 생성
-    pid_t pid1 = fork();
-    if (pid1 == 0) {
-        // 표준 출력을 파이프의 쓰기 단으로 리디렉션
-        dup2(pipe_fd[1], STDOUT_FILENO);
-        close(pipe_fd[0]);
-        close(pipe_fd[1]);
-
-        // 명령어 실행파일 경로를 저장할 변수
-        char command_path[256];
-        for (int i = 0; firstArray[i] != NULL; i++) {
-            if (strcmp(firstArray[i], "<") == 0) {
-                input_redirection = true;
-            } else if (strcmp(firstArray[i], ">") == 0) {
-                output_redirection = true;
-            }
-        }
-
-        // 리다이렉션이 있는 경우 처리
-        if (input_redirection || output_redirection) {
-            strcpy(command_path, "./command/redirect_input_output");
-            execvp(command_path, firstArray);
-            perror("execvp first command");
-            exit(EXIT_FAILURE);
-        } else {
-            // 입력된 명령어에 실행파일 경로 추가
-            snprintf(command_path, sizeof(command_path), "./command/%s", firstArray[0]);
-            // 첫 번째 명령어 실행
-            execvp(command_path, firstArray);
-            // execvp(firstArray[0], firstArray);
-            perror("execvp first command");
-            exit(EXIT_FAILURE);
-        }
-    } else if (pid1 < 0) {
+    // 처음은 그냥 실행
+    if ((pids[0] = fork()) == -1) {
         perror("fork");
         exit(EXIT_FAILURE);
     }
-    close(pipe_fd[1]); // 부모는 파이프의 쓰기 단을 사용하지 않음
 
-    waitpid(pid1, NULL, 0);
-
-    // 두 번째 자식 프로세스 생성
-    pid_t pid2 = fork();
-    if (pid2 == 0) {
-        // 표준 입력을 파이프의 읽기 단으로 리디렉션
-        dup2(pipe_fd[0], STDIN_FILENO);
-        close(pipe_fd[0]);
-        close(pipe_fd[1]);
-
-        // 명령어 실행파일 경로를 저장할 변수
-        char command_path[256];
-        for (int i = 0; secondArray[i] != NULL; i++) {
-            if (strcmp(secondArray[i], "<") == 0) {
-                input_redirection = true;
-            } else if (strcmp(secondArray[i], ">") == 0) {
-                output_redirection = true;
+    if (pids[0] == 0) { // 첫 번째 자식 프로세스
+        // 현재 자식 프로세스에서 이전 프로세스의 출력을 입력으로 받음
+        close(pipes[0][0]); // 현재 프로세스의 읽기 디스크립터를 닫음
+        dup2(pipes[0][1], STDOUT_FILENO); // 현재 프로세스의 출력을 파이프로 연결
+        close(pipes[0][1]); // 현재 프로세스의 쓰기 디스크립터를 닫음
+        if (redirection){
+            if (execvp("./command/redirect_input_output", temp_command) == -1) {
+                perror("execvp");
+                exit(EXIT_FAILURE);
+            }
+        } else {
+             // 명령어 실행파일 경로를 저장할 변수
+            char command_path[256];
+            // 입력된 명령어에 실행파일 경로 추가
+            snprintf(command_path, sizeof(command_path), "./command/%s", temp_command[0]);
+            // pipe_input 프로그램 실행
+            if (execvp(command_path, argv) == -1) {
+                perror("execvp");
+                exit(EXIT_FAILURE);
             }
         }
+    } else if (pids[0] > 0){
+        waitpid(pids[0], NULL, 0);
+    }
 
-        // 리다이렉션이 있는 경우 처리
-        if (input_redirection || output_redirection) {
-            strcpy(command_path, "./command/redirect_input_output");
-            execvp(command_path, secondArray);
-            perror("execvp first command");
-            exit(EXIT_FAILURE);
-        } else {
-            // 입력된 명령어에 실행파일 경로 추가
-            snprintf(command_path, sizeof(command_path), "./command/%s", secondArray[0]);
-            // 두 번째 명령어 실행
-            execvp(command_path, secondArray);
-            // execvp(secondArray[0], secondArray);
-            perror("execvp second command");
+    // 처음에 사용한 변수를 반환하고 값을 증가시킨다.
+    free(temp_command);
+    s_index = pipe_index + 1;
+    redirection = false;
+
+    // 2번째 이후 실행
+    for(int i=1; i<pids_count;i++){
+        if ((pids[i] = fork()) == -1) {
+            perror("fork");
             exit(EXIT_FAILURE);
         }
-    } else if (pid2 < 0) {
-        perror("fork");
-        exit(EXIT_FAILURE);
+        if (pids[i] == 0) { // 자식 프로세스
+            // 처리할 파이프의 위치를 찾는다.
+            pipe_index = argc;
+            for (int j = s_index; j < argc; j++) {
+                if (strcmp(argv[j], "|") == 0) {
+                    pipe_index = j;
+                    break;
+                }
+            }
+            // 명령어를 임시 저장할 배열
+            temp_command = (char **)malloc((pipe_index - s_index + 1) * sizeof(char *));
+            // 명령어에서 필요한 일부분만 복사하여 저장
+            for (int j = s_index; j < pipe_index; j++) {
+                temp_command[j - s_index] = argv[j];
+            }
+            temp_command[pipe_index - s_index] = NULL;
+
+            // 리다이렉션이 존재하는지 파악
+            for (int k=0; temp_command[k]!= NULL;k++){
+                if ((strcmp(temp_command[k], "<") == 0) || (strcmp(temp_command[k], ">") == 0)) {
+                    redirection = true;
+                    break;
+                }
+            }
+
+            // 시작 위치를 파이프 다음으로 넘긴다
+            s_index = pipe_index + 1;
+
+            // 현재 자식 프로세스에서 이전 프로세스의 출력을 입력으로 받음
+            close(pipes[i-1][1]); // 현재 프로세스의 쓰기 디스크립터를 닫음
+            dup2(pipes[i-1][0], STDIN_FILENO); // 이전 프로세스의 출력을 현재 프로세스의 입력으로 복제
+            close(pipes[i-1][0]); // 이전 프로세스의 읽기 디스크립터를 닫음
+            
+            if (i != (pids_count - 1)){
+                // 현재 자식 프로세스의 출력을 다음 프로세스의 입력으로 연결
+                close(pipes[i][0]); // 현재 프로세스의 읽기 디스크립터를 닫음
+                dup2(pipes[i][1], STDOUT_FILENO); // 현재 프로세스의 출력을 파이프로 연결
+                close(pipes[i][1]); // 현재 프로세스의 쓰기 디스크립터를 닫음
+            }
+            if (redirection){
+                if (execvp("./command/redirect_input_output", temp_command) == -1) {
+                    perror("execvp");
+                    exit(EXIT_FAILURE);
+                }
+            } else {
+                // 명령어 실행파일 경로를 저장할 변수
+                char command_path[256];
+                // 입력된 명령어에 실행파일 경로 추가
+                snprintf(command_path, sizeof(command_path), "./command/%s", temp_command[0]);
+                // 명령어 수행
+                if (execvp(command_path, temp_command) == -1) {
+                    perror("execlp");
+                    exit(EXIT_FAILURE);
+                }
+            }
+            free(temp_command);    
+            exit(EXIT_SUCCESS);
+        } else if (pids[i] > 0) {
+            for (int j = s_index; j < argc; j++) {
+                if (strcmp(argv[j], "|") == 0) {
+                    pipe_index = j;
+                    break;
+                }
+            }
+            s_index = pipe_index + 1;
+            waitpid(pids[i], NULL, 0);
+        }
     }
-    // 부모 프로세스
-    close(pipe_fd[0]); // 부모는 파이프의 읽기 단을 사용하지 않음
 
-    // 두 자식 프로세스의 종료를 기다림
-    waitpid(pid2, NULL, 0);
-
-    // 파일 디스크립터 복원
-    dup2(saved_stdout, STDOUT_FILENO);
-    dup2(saved_stdin, STDIN_FILENO);
-
-    close(saved_stdout);
-    close(saved_stdin);
-
-    free(firstArray);
-    free(secondArray);
     return 0;
 }
