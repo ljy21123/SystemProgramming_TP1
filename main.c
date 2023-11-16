@@ -104,13 +104,19 @@ int main(int argc, char *argv[]){
                 execvp("./command/redirect_input_output", tokens);
             }
             else {
-                // 명령어 실행파일 경로를 저장할 변수
-                char command_path[256];
-                // 입력된 명령어에 실행파일 경로 추가
-                snprintf(command_path, sizeof(command_path), "./command/%s", tokens[0]);
-                // 경로에 있는 실행파일 실행
-                execvp(command_path, tokens);
-                // execvp(tokens[0], tokens);
+                // command에 들어있는 프로그램이 아닌 다른 주소의 프로그램 실행시
+                if (strstr(tokens[0], "/") != NULL) {
+                    // tokens[0]에는 "./"이 포함되어 있다.
+                    execvp(tokens[0], tokens);
+                } else {
+                    // 명령어 실행파일 경로를 저장할 변수
+                    char command_path[256];
+                    // 입력된 명령어에 실행파일 경로 추가
+                    snprintf(command_path, sizeof(command_path), "./command/%s", tokens[0]);
+                    // 경로에 있는 실행파일 실행
+                    execvp(command_path, tokens);
+                    // execvp(tokens[0], tokens);
+                }
             }
             // 실행파일이 없다면 오류출력
             fprintf(stderr, "%s: Command not found\n", tokens[0]);
