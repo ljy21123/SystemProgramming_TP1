@@ -7,8 +7,8 @@
 
 void make_directory(char *tokens[]) {
     // 디렉토리 생성
-    if (mkdir(tokens, S_IRWXU) == 0) {
-        printf("directory create success!!: %s\n", tokens);
+    if (mkdir(tokens[1], S_IRWXU) == 0) {
+        printf("directory create success!!: %s\n", tokens[1]);
     } else {
         perror("directory create fail..");
     }
