@@ -4,11 +4,12 @@
 #include <stdbool.h>
 #include <sys/wait.h>
 #include <sys/stat.h>
+#include <unistd.h>
 
-void remove_directory(char *tokens) {
+void remove_directory(char *tokens[]) {
     // 디렉토리 삭제
-    if (rmdir(tokens) == 0) {
-        printf("directory delete success!!: %s\n", tokens);
+    if (rmdir(tokens[1]) == 0) {
+        printf("directory delete success!!: %s\n", tokens[1]);
     } else {
         perror("directory delete fail..");
     }
