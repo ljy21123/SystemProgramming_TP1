@@ -88,13 +88,6 @@ void handleRedirection(char* tokens[]) {
 
 int main(int argc, char *argv[]){
     if (argc == 1){
-        // printf("사용법: mv <원본 경로> <대상 경로>\n");
-        // printf("파일 또는 디렉토리를 이동하거나 이름을 변경합니다.\n");
-        // printf("\n옵션:\n");
-        // printf("  -b, --backup          각 대상 파일에 대해 백업을 만듭니다\n");
-        // printf("  -i, --interactive     파일을 덮어쓰기 전에 확인 메시지를 출력합니다\n");
-        // printf("  -u, --update          대상 파일이 원본 파일보다 최신인 경우에만 이동합니다\n");
-        // printf("  -v, --verbose         수행 중인 작업을 자세히 설명합니다\n");
         return 0;
     }
 
