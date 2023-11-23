@@ -13,6 +13,7 @@
 #include <limits.h> 
 
 #define MAX_INPUT_SIZE 1024
+
 void removeDirectory(const char *path, bool i, bool v, bool f) {
     DIR *dir;
     struct dirent *entry;
@@ -119,7 +120,7 @@ void remove_file(char *tokens[]) {
             r = true;
         if (strchr(tokens[s], 'v') != NULL)
             v = true;
-        if (strchr(tokens[s], 'v') != NULL)
+        if (strchr(tokens[s], 'f') != NULL)
             f = true;
         s = 2;   
     }

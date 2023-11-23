@@ -16,6 +16,7 @@
 
 
 #include <stdio.h>
+#include <stdlib.h>
 #include <string.h>
 #include <unistd.h>
 #include <stdbool.h>
@@ -52,7 +53,7 @@ int main(int argc, char *argv[]){
         // exit입력시 쉘 종료
         if (strcmp(input, "exit") == 0){
             printf("bye\n");
-            break;
+            exit(0);
         }
 
         // 분할 토큰 출력
