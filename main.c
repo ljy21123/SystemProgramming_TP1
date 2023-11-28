@@ -35,12 +35,21 @@ int main(int argc, char *argv[]){
     char *tokens[MAX_TOKENS];
     int narg;
     pid_t pid;
-    
+    char path[4000]; // 실행 프로그램이 있는 절대 경로 저장
+    // 명령어 실행파일 경로를 저장할 변수
+    char command_path[4500];
     if (signal(SIGINT, handle_interrupt) == SIG_ERR || signal(SIGTSTP, handle_interrupt) == SIG_ERR) {
         perror("signal");
         exit(EXIT_FAILURE);
     }
+    
+    if(getcwd(path, sizeof(path))==NULL){
+        perror("getcwd");
+        exit(1);
+    }
+    strcat(path, "/command/"); // 실행프로그램 절대 경로 생성
 
+    printf("%s\n",path);
     while (1) {
         // 프롬프트 표시
         printf("MyShell> ");
@@ -72,11 +81,6 @@ int main(int argc, char *argv[]){
                 change_directory(getenv("HOME"));
             }
             continue; // Skip the fork-exec logic for "cd" command
-        }
-
-        //경로 문제 확인을 위한 main에 구현한 pwd(추후삭제)
-        else if (strcmp(tokens[0], "pwd") == 0) {
-            print_current_directory();
         }
 
         // 분할 토큰 출력
@@ -121,11 +125,13 @@ int main(int argc, char *argv[]){
         
         if (pid == 0){
             if (pipe){
+                snprintf(command_path, sizeof(command_path), "%spipe", path, tokens[0]);
                 // 경로에 있는 실행파일 실행
-                execvp("./command/pipe", tokens);
+                execvp(command_path, tokens);
             }
             else if(inputRedirect || outputRedirect){
-                execvp("./command/redirect_input_output", tokens);
+                snprintf(command_path, sizeof(command_path), "%sredirect_input_output", path, tokens[0]);
+                execvp(command_path, tokens);
             }
             else {
                 // command에 들어있는 프로그램이 아닌 다른 주소의 프로그램 실행시
@@ -133,10 +139,8 @@ int main(int argc, char *argv[]){
                     // tokens[0]에는 "./"이 포함되어 있다.
                     execvp(tokens[0], tokens);
                 } else {
-                    // 명령어 실행파일 경로를 저장할 변수
-                    char command_path[256];
                     // 입력된 명령어에 실행파일 경로 추가
-                    snprintf(command_path, sizeof(command_path), "./command/%s", tokens[0]);
+                    snprintf(command_path, sizeof(command_path), "%s%s", path, tokens[0]);
                     // 경로에 있는 실행파일 실행
                     execvp(command_path, tokens);
                     // execvp(tokens[0], tokens);
