@@ -21,17 +21,25 @@
 #include <unistd.h>
 #include <stdbool.h>
 #include <sys/wait.h>
+#include <limits.h>
+#include <signal.h>
 
 #define MAX_INPUT_SIZE 1024
 #define MAX_TOKENS 100
 
 int get_tokens(char *cmd, char **tokens);
+void handle_interrupt(int signo);
 
 int main(int argc, char *argv[]){
     char input[MAX_INPUT_SIZE];
     char *tokens[MAX_TOKENS];
     int narg;
     pid_t pid;
+    
+    if (signal(SIGINT, handle_interrupt) == SIG_ERR || signal(SIGTSTP, handle_interrupt) == SIG_ERR) {
+        perror("signal");
+        exit(EXIT_FAILURE);
+    }
 
     while (1) {
         // 프롬프트 표시
@@ -54,6 +62,21 @@ int main(int argc, char *argv[]){
         if (strcmp(input, "exit") == 0){
             printf("bye\n");
             exit(0);
+        }
+        // 디렉터리 변경 
+        if (strcmp(tokens[0], "cd") == 0) {
+            if (narg > 1) {
+                change_directory(tokens[1]);
+            } else {
+                // Handle "cd" without arguments (change to home directory)
+                change_directory(getenv("HOME"));
+            }
+            continue; // Skip the fork-exec logic for "cd" command
+        }
+
+        //경로 문제 확인을 위한 main에 구현한 pwd(추후삭제)
+        else if (strcmp(tokens[0], "pwd") == 0) {
+            print_current_directory();
         }
 
         // 분할 토큰 출력
@@ -145,4 +168,26 @@ int get_tokens(char *cmd, char **tokens){
     }
     tokens[i] = NULL;
     return i;
+}
+
+void handle_interrupt(int signo) {
+    printf("\n인터럽트 발생, 프로그램을 종료합니다...\n");
+    exit(EXIT_SUCCESS);
+}
+
+void change_directory(const char *path) {
+    if (chdir(path) != 0) {
+        perror("chdir");
+    }
+}
+
+//경로 문제 확인을 위한 main에 구현한 pwd(추후삭제)
+void print_current_directory() {
+    char buffer[1024];
+    if (getcwd(buffer, sizeof(buffer)) != NULL) {
+        printf("%s\n", buffer);
+    } else {
+        perror("getcwd");
+        exit(EXIT_FAILURE);
+    }
 }
