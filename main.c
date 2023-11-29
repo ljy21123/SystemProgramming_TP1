@@ -52,8 +52,13 @@ int main(int argc, char *argv[]){
 
     printf("%s\n",path);
     while (1) {
+        char pwd[4000];
+        if(getcwd(pwd, sizeof(pwd))==NULL){
+            perror("getcwd");
+            exit(1);
+        }
         // 프롬프트 표시
-        printf("MyShell> ");
+        printf("MyShell: %s> ", pwd);
 
         // 사용자 입력 받기
         fgets(input, MAX_INPUT_SIZE, stdin);
