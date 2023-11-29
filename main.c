@@ -27,6 +27,7 @@
 #define MAX_INPUT_SIZE 1024
 #define MAX_TOKENS 100
 
+void change_directory(const char *path);
 int get_tokens(char *cmd, char **tokens);
 void handle_interrupt(int signo);
 
@@ -125,18 +126,25 @@ int main(int argc, char *argv[]){
         
         if (pid == 0){
             if (pipe){
-                snprintf(command_path, sizeof(command_path), "%spipe", path, tokens[0]);
+                // 토크 마지막에 절대경로 추가
+                tokens[narg++] = path;
+                tokens[narg] = NULL;
+                snprintf(command_path, sizeof(command_path), "%spipe", path);
                 // 경로에 있는 실행파일 실행
                 execvp(command_path, tokens);
             }
             else if(inputRedirect || outputRedirect){
-                snprintf(command_path, sizeof(command_path), "%sredirect_input_output", path, tokens[0]);
+                // 토크 마지막에 절대경로 추가
+                tokens[narg++] = path;
+                tokens[narg] = NULL;
+                printf("\n%d\n",narg);
+                snprintf(command_path, sizeof(command_path), "%sredirect_input_output", path);
                 execvp(command_path, tokens);
             }
             else {
                 // command에 들어있는 프로그램이 아닌 다른 주소의 프로그램 실행시
                 if (strstr(tokens[0], "/") != NULL) {
-                    // tokens[0]에는 "./"이 포함되어 있다.
+                    // tokens[0]에 "/"이 포함되어 있다.
                     execvp(tokens[0], tokens);
                 } else {
                     // 입력된 명령어에 실행파일 경로 추가

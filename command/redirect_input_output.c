@@ -6,8 +6,12 @@
 #include <stdlib.h>   // exit
 #include <string.h> 
 
+// 절대경로 저장 변수
+char path[4000];
+
 // 리다이렉션 처리 함수
 void handleRedirection(char* tokens[]) {
+    char command_path[4500];
     int saved_stdout = dup(1);
     int saved_stdin = dup(0);
 
@@ -61,10 +65,8 @@ void handleRedirection(char* tokens[]) {
     pid_t pid = fork();
     
     if (pid == 0){
-        // 명령어 실행파일 경로를 저장할 변수
-        char command_path[256];
         // 입력된 명령어에 실행파일 경로 추가
-        snprintf(command_path, sizeof(command_path), "./command/%s", tokens[0]);
+        snprintf(command_path, sizeof(command_path), "%s%s", path, tokens[0]);
         // 경로에 있는 실행파일 실행
         execvp(command_path, tokens);
 
@@ -87,9 +89,13 @@ void handleRedirection(char* tokens[]) {
 }
 
 int main(int argc, char *argv[]){
-    if (argc == 1){
+    if (argc == 2){
         return 0;
     }
+
+    strcpy(path, argv[argc - 1]);
+    
+    argv[--argc] = NULL;
 
     handleRedirection(argv);
     return 0;
