@@ -50,7 +50,6 @@ int main(int argc, char *argv[]){
     }
     strcat(path, "/command/"); // 실행프로그램 절대 경로 생성
 
-    printf("%s\n",path);
     while (1) {
         char pwd[4000];
         if(getcwd(pwd, sizeof(pwd))==NULL){
@@ -142,7 +141,6 @@ int main(int argc, char *argv[]){
                 // 토크 마지막에 절대경로 추가
                 tokens[narg++] = path;
                 tokens[narg] = NULL;
-                printf("\n%d\n",narg);
                 snprintf(command_path, sizeof(command_path), "%sredirect_input_output", path);
                 execvp(command_path, tokens);
             }
