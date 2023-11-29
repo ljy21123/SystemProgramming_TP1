@@ -6,6 +6,12 @@
 #include <sys/wait.h>
 
 int main(int argc, char* argv[]) {
+    char path[4000];
+    char command_path[4500];
+
+    strcpy(path, argv[argc - 1]);
+    argv[--argc] = NULL;
+
     // 문자열 처리 변수
     int s_index = 0;
     int pipe_index = 0;
@@ -42,7 +48,7 @@ int main(int argc, char* argv[]) {
         }
     }
     // 첫번째 명령어를 잘라내어 보관
-    temp_command = (char **)malloc((pipe_index - s_index + 1) * sizeof(char *));
+    temp_command = (char **)malloc((pipe_index - s_index + 2) * sizeof(char *));
     for (int i = s_index; i < pipe_index; i++) {
             temp_command[i - s_index] = argv[i];
         }
@@ -51,6 +57,8 @@ int main(int argc, char* argv[]) {
     // 리다이렉션이 존재하는지 파악
     for (int i=0; temp_command[i]!= NULL;i++){
         if ((strcmp(temp_command[i], "<") == 0) || (strcmp(temp_command[i], ">") == 0)) {
+            temp_command[pipe_index - s_index] = path;
+            temp_command[pipe_index - s_index + 1] = NULL;
             redirection = true;
             break;
         }
@@ -68,15 +76,14 @@ int main(int argc, char* argv[]) {
         dup2(pipes[0][1], STDOUT_FILENO); // 현재 프로세스의 출력을 파이프로 연결
         close(pipes[0][1]); // 현재 프로세스의 쓰기 디스크립터를 닫음
         if (redirection){
-            if (execvp("./command/redirect_input_output", temp_command) == -1) {
+            snprintf(command_path, sizeof(command_path), "%sredirect_input_output", path);
+            if (execvp(command_path, temp_command) == -1) {
                 perror("execvp");
                 exit(EXIT_FAILURE);
             }
         } else {
-             // 명령어 실행파일 경로를 저장할 변수
-            char command_path[256];
             // 입력된 명령어에 실행파일 경로 추가
-            snprintf(command_path, sizeof(command_path), "./command/%s", temp_command[0]);
+            snprintf(command_path, sizeof(command_path), "%s%s", path, temp_command[0]);
             // pipe_input 프로그램 실행
             if (execvp(command_path, argv) == -1) {
                 perror("execvp");
@@ -118,6 +125,8 @@ int main(int argc, char* argv[]) {
             // 리다이렉션이 존재하는지 파악
             for (int k=0; temp_command[k]!= NULL;k++){
                 if ((strcmp(temp_command[k], "<") == 0) || (strcmp(temp_command[k], ">") == 0)) {
+                    temp_command[pipe_index - s_index] = path;
+                    temp_command[pipe_index - s_index + 1] = NULL;
                     redirection = true;
                     break;
                 }
@@ -138,15 +147,14 @@ int main(int argc, char* argv[]) {
                 close(pipes[i][1]); // 현재 프로세스의 쓰기 디스크립터를 닫음
             }
             if (redirection){
-                if (execvp("./command/redirect_input_output", temp_command) == -1) {
+                snprintf(command_path, sizeof(command_path), "%sredirect_input_output", path);
+                if (execvp(command_path, temp_command) == -1) {
                     perror("execvp");
                     exit(EXIT_FAILURE);
                 }
             } else {
-                // 명령어 실행파일 경로를 저장할 변수
-                char command_path[256];
                 // 입력된 명령어에 실행파일 경로 추가
-                snprintf(command_path, sizeof(command_path), "./command/%s", temp_command[0]);
+                snprintf(command_path, sizeof(command_path), "%s%s", path, temp_command[0]);
                 // 명령어 수행
                 if (execvp(command_path, temp_command) == -1) {
                     perror("execlp");

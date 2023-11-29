@@ -26,8 +26,6 @@ void handleRedirection(char* tokens[]) {
             output_redirection = i;
     }
 
-
-    
     // 입력 리다이렉션 처리
     if (input_redirection != -1) {
         // 입력 리다이렉션 처리
@@ -92,11 +90,8 @@ int main(int argc, char *argv[]){
     if (argc == 2){
         return 0;
     }
-
     strcpy(path, argv[argc - 1]);
-    
     argv[--argc] = NULL;
-
     handleRedirection(argv);
     return 0;
 }
